@@ -7,9 +7,100 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  READY_FOR_DISPATCH
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  COMPLETED
+  PAYMENT_FAILED
+  DELIVERY_FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum DeliveryStatus {
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+}
+
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  email       String   @unique
+  passwordHash String
+  createdAt   DateTime @default(now())
+
+  orders      Order[]
+  driverAssignments DeliveryAssignment[] @relation("DriverAssignments")
+}
+
+model Order {
+  id            Int           @id @default(autoincrement())
+  customerId    Int
+  status        OrderStatus   @default(PENDING_PAYMENT)
+  paymentStatus PaymentStatus  @default(PENDING)
+  totalAmount   Decimal       @db.Decimal(12, 2)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  customer      User          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  items         OrderItem[]
+  payment       Payment?
+  deliveryAssignment DeliveryAssignment?
+
+  @@index([customerId])
+  @@index([status])
+  @@index([paymentStatus])
+}
+
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  productName  String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2)
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Payment {
+  id                    Int           @id @default(autoincrement())
+  orderId               Int           @unique
+  amount                Decimal       @db.Decimal(12, 2)
+  paymentMethod         String
+  status                PaymentStatus @default(PENDING)
+  transactionReference  String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model DeliveryAssignment {
+  id           Int            @id @default(autoincrement())
+  orderId      Int            @unique
+  driverId     Int?
+  assignedAt   DateTime       @default(now())
+  status       DeliveryStatus @default(ASSIGNED)
+
+  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver       User?          @relation("DriverAssignments", fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([driverId])
+  @@index([status])
 }
